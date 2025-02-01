@@ -11,16 +11,24 @@ grafana:
     enabled: true
     ingressClassName: traefik
     hosts:
-      - grafana.local
+      - grafana.k3s
   service:
     type: LoadBalancer
+  nodeSelector:
+    node-role.kubernetes.io/control-plane: "true"
+kube-state-metrics:
+  nodeSelector:
+    node-role.kubernetes.io/control-plane: "true"
 prometheus:
   ingress:
     enabled: true
     ingressClassName: traefik
     hosts:
-      - prometheus.local
+      - prometheus.k3s
     paths: ['/']
+prometheusOperator:
+  nodeSelector:
+    node-role.kubernetes.io/control-plane: "true"
 prometheus-node-exporter:
   extraArgs:
     - --collector.disable-defaults

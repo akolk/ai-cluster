@@ -117,7 +117,7 @@ Additionally, I installed a [subnet router](https://tailscale.com/kb/1185/kubern
 .:53 {
   ...
   hosts /etc/coredns/NodeHosts {
-    192.168.1.80 open-webui.local
+    192.168.1.80 open-webui.k3s
     ...
   }
   ...
@@ -232,7 +232,7 @@ For those who are trying to deploy Flyte, and have search far and wide for solut
 
 ```yaml
 admin:
-  endpoint: dns:///flyte.local
+  endpoint: dns:///flyte.k3s
   authType: Pkce
   insecure: false
   caCertFilePath: /home/<username>/.flyte/ca.crt
@@ -271,7 +271,7 @@ The obvious aside, I'm going to still scale on two Jetsons. And I'm going to do 
 3. Run the existing [PyTorch Lightning Distributed Training Example](https://docs.flyte.org/en/latest/flytesnacks/examples/kfpytorch_plugin/pytorch_lightning_mnist_autoencoder.html).
    1. This workflow does not work out of the box on a Jetson, namely we get the error `nvmlDeviceGetP2PStatus(0,0,NVML_P2P_CAPS_INDEX_READ) failed: Not Supported`. This means that we can't use the `nccl` backend because nvidia didn't add support for P2P on the Jetson. Instead we'll just use `gloo`.
    2. When you make a change to your container, the pods deployed don't have `imagePullPolicy: Always`, so we need to create a [`PodTemplate`](./jetson-flyte/train.py#L27-49)
-   3. At the same time, these pods are not using the same shared storage, so I created a [`pvc`](./manifests/flyte-pvc.yaml) that is always used in my `PodTemplate`.
+   3. At the same time, these pods are not using the same shared storage, so I created a [`pvc`](./manifests/flyte-extras.yaml) that is always used in my `PodTemplate`.
 
 After doing these steps I noticed that the Jetsons were barely being used by the benchmark along with a bunch of other small issues I saw. So I intended to remake the benchmark training ResNet50 on CIFAR100. This would ensure that the time between epochs is still small enough to sit down and watch, while still being long enough to hear the Jetson fans spin.
 
@@ -291,6 +291,42 @@ If you're not using AWS though, you can use Loki for this, and flyte will genera
 It was with Open WebUI where I originally found the ISCSI issue with the Nvidia Jetson node because I wanted to add Persistence to Ollama since I was testing out models and if the container failed with an OOM error I wouldn't have to re-download everything all over again.
 
 Open WebUI is a great place to store data for RAG usage and test out new tools/functions in a sandbox environment. It has a lot of way to hook up tools like [Stable Diffusion](https://stabledifffusion.com/), Web Search, [Whisper](https://openai.com/index/whisper/), etc.
+
+### Cert-Manager
+
+[Cert-Manager](https://cert-manager.io/) is a tool to configure SSL for applications deployed on Kubernetes, and in general do certificate management for Cloud Native environments. I wanted to enable SSL because it enables certain features on the browser that could be worth exploring later, mainly to do with accessing audio devices to do text-to-speech.
+
+Because my applications are only available on a private network I can't take advantage of a tool like [letsencrypt](https://letsencrypt.org/), so instead I have to configure self-signed certificates and then install them manually into my browser. During this process we don't actually have to create any certificates manually on linux, instead cert-manager will do that for us, and re-create/issue certificates if any changes are made or if a certificate would expire.
+
+```mermaid
+flowchart LR
+    subgraph Cert-Manager[" "]
+        direction TB
+        A["Self-Signed<br/>Issuer"] -->|Creates| B["Root CA"]
+        B -->|Signs| C["Wildcard<br/>Certificate"]
+    end
+
+    subgraph Traefik[" "]
+        direction TB
+        D["TLS Store"] -->|Configures| E["Traefik<br/>Proxy"]
+        E -->|Routes| F["IngressRoutes"]
+    end
+
+    C -->|Stored in| D
+
+    style A fill:#2d4f3c,stroke:#50a37d,color:#fff
+    style B fill:#2d4f3c,stroke:#50a37d,color:#fff
+    style C fill:#2d4f3c,stroke:#50a37d,color:#fff
+    style D fill:#2b4465,stroke:#6c8ebf,color:#fff
+    style E fill:#2b4465,stroke:#6c8ebf,color:#fff
+    style F fill:#2b4465,stroke:#6c8ebf,color:#fff
+    style Cert-Manager fill:none,stroke:none
+    style Traefik fill:none,stroke:none
+```
+
+> A Flowchart showing the relationship between all [cert-manager objects](./manifests/k3s-ssl.yaml) and [traefik objects](./manifests/traefik-routes.yaml)
+
+Along the way I learned that wildcards don't really work with the `Certificate` object, and instead I had to list out all of my DNS Names. Additionally, each `IngressRoute` needs to point to a `Middleware` in its namespace that redirects traffic to https to ensure SSL is actually used. If SSL would break for whatever reason, we still have http as an option just in case.
 
 <!--
 

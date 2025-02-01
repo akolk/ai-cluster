@@ -5,7 +5,7 @@ metadata:
   name: monitoring-grafana
   namespace: monitoring
   annotations:
-    gethomepage.dev/href: "https://grafana.local"
+    gethomepage.dev/href: "https://grafana.k3s"
     gethomepage.dev/enabled: "true"
     gethomepage.dev/description: Cluster Data Analytics and Monitoring
     gethomepage.dev/icon: grafana.png
@@ -13,18 +13,22 @@ metadata:
     gethomepage.dev/app: grafana
     gethomepage.dev/name: Grafana
     gethomepage.dev/widget.type: "grafana"
-    gethomepage.dev/widget.url: "https://grafana.local"
+    gethomepage.dev/widget.url: "https://grafana.k3s"
     gethomepage.dev/widget.username: admin
     gethomepage.dev/widget.password: prom-operator
 spec:
   entryPoints:
     - web
+    - websecure
   routes:
-  - match: Host(`grafana.local`)
+  - match: Host(`grafana.k3s`)
     kind: Rule
     services:
     - name: monitoring-grafana
       port: 80
+    middlewares:
+    - name: redirect-https
+  tls: {}
 ---
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
@@ -32,22 +36,38 @@ metadata:
   name: longhorn
   namespace: longhorn
   annotations:
-    gethomepage.dev/href: "https://longhorn.local"
+    gethomepage.dev/href: "https://longhorn.k3s"
     gethomepage.dev/enabled: "true"
     gethomepage.dev/description: Distributed Cluster Storage
     gethomepage.dev/icon: longhorn.png
     gethomepage.dev/group: Storage
     gethomepage.dev/app: longhorn
     gethomepage.dev/name: Longhorn
+    gethomepage.dev/namespace: longhorn
+    gethomepage.dev/podSelector: ""
 spec:
   entryPoints:
     - web
+    - websecure
   routes:
-  - match: Host(`longhorn.local`)
+  - match: Host(`longhorn.k3s`)
     kind: Rule
     services:
     - name: longhorn-frontend
       port: 80
+    middlewares:
+    - name: redirect-https
+  tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-https
+  namespace: longhorn
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true
 --- # add server.insecure: "true" to argocd-cmd-params-cm
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -56,7 +76,7 @@ metadata:
   namespace: argocd
 spec:
   rules:
-  - host: argo.local
+  - host: argo.k3s
     http:
       paths:
       - backend:
@@ -73,24 +93,38 @@ metadata:
   name: argocd
   namespace: argocd
   annotations:
-    gethomepage.dev/href: "https://argo.local"
+    gethomepage.dev/href: "https://argo.k3s"
     gethomepage.dev/enabled: "true"
     gethomepage.dev/description: Cluster GitOps and Continuous Delivery
     gethomepage.dev/group: GitOps
     gethomepage.dev/name: ArgoCD
     gethomepage.dev/app: argocd-server
     gethomepage.dev/widget.type: "argocd"
-    gethomepage.dev/widget.url: "https://argo.local"
+    gethomepage.dev/widget.url: "https://argo.k3s"
     gethomepage.dev/widget.key: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJhcmdvY2QiLCJzdWIiOiJob21lcGFnZTphcGlLZXkiLCJuYmYiOjE3MzcwNjUwMjEsImlhdCI6MTczNzA2NTAyMSwianRpIjoiMjc0MTVjNGUtNjAwYi00MTRlLWIwMWUtOGE3NWY3MWM3MzliIn0.Zph6kdl7E9tPs_aX-0g3hXi-OxM6jd6G7XBPbjUyXWU"
 spec:
   entryPoints:
     - web
+    - websecure
   routes:
-  - match: Host(`argo.local`)
+  - match: Host(`argo.k3s`)
     kind: Rule
     services:
     - name: argocd-server
       port: 80
+    middlewares:
+    - name: redirect-https
+  tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-https
+  namespace: argocd
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true
 ---
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
@@ -98,7 +132,7 @@ metadata:
   name: open-webui
   namespace: ollama
   annotations:
-    gethomepage.dev/href: "https://open-webui.local"
+    gethomepage.dev/href: "https://open-webui.k3s"
     gethomepage.dev/enabled: "true"
     gethomepage.dev/app: open-webui
     gethomepage.dev/description: AI Platform
@@ -107,12 +141,30 @@ metadata:
 spec:
   entryPoints:
     - web
+    - websecure
   routes:
-  - match: Host(`open-webui.local`)
-    kind: Rule
-    services:
-    - name: open-webui
-      port: 80
+    - match: Host(`open-webui.k3s`)
+      kind: Rule
+      services:
+        - name: open-webui
+          port: 80
+          sticky:
+            cookie:
+              name: route
+              maxAge: 172800
+      middlewares:
+      - name: redirect-https
+  tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-https
+  namespace: ollama
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true
 ---
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
@@ -120,20 +172,35 @@ metadata:
   name: prometheus
   namespace: monitoring
   annotations:
-    gethomepage.dev/href: "https://prometheus.local"
+    gethomepage.dev/href: "https://prometheus.k3s"
     gethomepage.dev/enabled: "true"
     gethomepage.dev/app: prometheus
     gethomepage.dev/description: Metrics Scraping
+    gethomepage.dev/icon: prometheus.png
     gethomepage.dev/group: Monitoring
     gethomepage.dev/name: Prometheus
     gethomepage.dev/widget.type: "prometheus"
-    gethomepage.dev/widget.url: "https://prometheus.local"
+    gethomepage.dev/widget.url: "https://prometheus.k3s"
 spec:
   entryPoints:
     - web
+    - websecure
   routes:
-  - match: Host(`prometheus.local`)
+  - match: Host(`prometheus.k3s`)
     kind: Rule
     services:
     - name: monitoring-kube-prometheus-prometheus
       port: 9090
+    middlewares:
+    - name: redirect-https
+  tls: {}
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-https
+  namespace: monitoring
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true
