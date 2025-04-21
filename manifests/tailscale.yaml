@@ -1,0 +1,40 @@
+apiVersion: tailscale.com/v1alpha1
+kind: DNSConfig
+metadata:
+  name: ts-dns
+spec:
+  nameserver:
+    image:
+      repo: tailscale/k8s-nameserver
+      tag: unstable
+---
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyClass
+metadata:
+  name: control-plane
+spec:
+  statefulSet:
+    pod:
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: "true"
+---
+apiVersion: tailscale.com/v1alpha1
+kind: Connector
+metadata:
+  name: control-plane
+spec:
+  proxyClass: control-plane
+  subnetRouter:
+    advertiseRoutes:
+      - "10.42.0.0/15"
+      - "10.43.0.0/16"
+      - "192.168.1.41/32"
+      - "192.168.1.64/27"
+---
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyGroup
+metadata:
+  name: egress
+spec:
+  type: egress
+  proxyClass: prod

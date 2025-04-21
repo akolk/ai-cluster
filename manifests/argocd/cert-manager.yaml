@@ -1,6 +1,0 @@
-# This App has not been fully configured and is not working. Give it some love.
-# https://charts.jetstack.io
-# cert-manager:v1.16.3
-crds:
-  enabled: true
-namespace: traefik
